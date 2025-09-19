@@ -342,22 +342,41 @@ def xyearfrac(start_date, end_date, basis=0):
     if any(isinstance(d[0], bool) for d in dates):
         return Error.errors['#VALUE!']
     # noinspection PyTypeChecker
-    basis, dates = int(basis), [xday(*d, slice(0, 3)) for d in dates]
+    basis, dates = int(basis), sorted([xday(*d, slice(0, 3)) for d in dates])
 
-    (y1, m1, d1), (y2, m2, d2) = sorted(dates)
-    denom = 360
+    return day_count(*dates, basis=basis) / year_days(*dates, basis=basis)
+
+
+def year_days(start_date, end_date, basis):
+    y1, m1, d1 = start_date
+    y2, m2, d2 = end_date
+
+    if basis in (0, 2, 4):  # US 30/360 & Actual/360 & Eurobond 30/360
+        return 360
+    elif basis == 3:  # Actual/365
+        return 365
+    elif basis == 1:  # Actual/actual
+        return 365 + calendar.leapdays(y1, y2 + 1) / (y2 - y1 + 1)
+
+
+def day_count(start_date, end_date, basis, exact=False):
+    y1, m1, d1 = start_date
+    y2, m2, d2 = end_date
     if basis in (0, 4):  # US 30/360 & Eurobond 30/360
         d1 = min(d1, 30)
         if basis == 4 or d1 == 30:
             d2 = min(d2, 30)
+        elif basis == 0 and d1 in (28, 29):
+            if calendar.monthrange(y1, m1)[1] == d1:
+                d1 = 30
+                if calendar.monthrange(y2, m2)[1] == d2:
+                    d2 = 30
         n_days = 360 * (y2 - y1) + 30 * (m2 - m1) + (d2 - d1)
     else:  # Actual/actual & Actual/360 & Actual/365
         n_days = xdate(y2, m2, d2) - xdate(y1, m1, d1)
-        if basis == 3:
-            denom = 365
-        elif basis == 1:
-            denom = 365 + calendar.leapdays(y1, y2 + 1) / (y2 - y1 + 1)
-    return n_days / denom
+    if exact and end_date >= (1900, 3, 1) > start_date:
+        n_days -= 1
+    return n_days
 
 
 FUNCTIONS['YEARFRAC'] = wrap_func(xyearfrac)
