@@ -91,7 +91,6 @@ FUNCTIONS['ACCRINTM'] = wrap_ufunc(
         parse_basis(par, float),
         parse_basis(basis)
     ),
-    check_error=get_error,
     args_parser=lambda *a: map(replace_empty, a)
 )
 
@@ -252,6 +251,180 @@ def xnominal(effect_rate, npery):
 
 FUNCTIONS['EFFECT'] = wrap_func(xeffect)
 FUNCTIONS['NOMINAL'] = wrap_func(xnominal)
+
+
+def args_parser_intrate(settlement, maturity, investment, redemption, basis=0):
+    settlement = parse_date(replace_empty(np.asarray(settlement).item()))
+    maturity = parse_date(replace_empty(np.asarray(maturity).item()))
+
+    investment = replace_empty(np.asarray(investment).item())
+    redemption = replace_empty(np.asarray(redemption).item())
+    if isinstance(investment, bool) or isinstance(redemption, bool):
+        raise FoundError(err=Error.errors['#VALUE!'])
+    investment = _convert2float(investment)
+    redemption = _convert2float(redemption)
+    if settlement >= maturity:
+        raise FoundError(err=Error.errors["#NUM!"])
+    if investment <= 0 or redemption <= 0:
+        raise FoundError(err=Error.errors["#NUM!"])
+    dates = settlement, maturity
+    return (redemption - investment) / investment, dates, basis
+
+
+def xintrate(num, dates, basis=0):
+    yf = day_count(*dates, basis=basis) / year_days(*dates, basis=basis)
+    return num / yf
+
+
+FUNCTIONS['INTRATE'] = wrap_ufunc(
+    xintrate,
+    input_parser=lambda num, dates, basis: (num, dates, parse_basis(basis)),
+    args_parser=args_parser_intrate,
+    excluded={0, 1}
+)
+
+
+def args_parser_received(settlement, maturity, investment, discount, basis=0):
+    settlement = parse_date(replace_empty(np.asarray(settlement).item()))
+    maturity = parse_date(replace_empty(np.asarray(maturity).item()))
+
+    investment = replace_empty(np.asarray(investment).item())
+    discount = replace_empty(np.asarray(discount).item())
+    if isinstance(investment, bool) or isinstance(discount, bool):
+        raise FoundError(err=Error.errors['#VALUE!'])
+    investment = _convert2float(investment)
+    discount = _convert2float(discount)
+    if settlement >= maturity:
+        raise FoundError(err=Error.errors["#NUM!"])
+    if investment <= 0 or discount <= 0:
+        raise FoundError(err=Error.errors["#NUM!"])
+    dates = settlement, maturity
+    return investment, discount, dates, basis
+
+
+def xreceived(investment, discount, dates, basis=0):
+    yf = day_count(*dates, basis=basis) / year_days(*dates, basis=basis)
+    return investment / (1 - discount * yf)
+
+
+FUNCTIONS['RECEIVED'] = wrap_ufunc(
+    xreceived,
+    input_parser=lambda investment, discount, dates, basis: (
+        investment, discount, dates, parse_basis(basis)
+    ),
+    args_parser=args_parser_received,
+    excluded={0, 1, 2}
+)
+
+
+def args_parser_disc(settlement, maturity, pr, redemption, basis=0):
+    settlement = parse_date(replace_empty(np.asarray(settlement).item()))
+    maturity = parse_date(replace_empty(np.asarray(maturity).item()))
+
+    pr = replace_empty(np.asarray(pr).item())
+    redemption = replace_empty(np.asarray(redemption).item())
+    if isinstance(pr, bool) or isinstance(redemption, bool):
+        raise FoundError(err=Error.errors['#VALUE!'])
+    pr = _convert2float(pr)
+    redemption = _convert2float(redemption)
+    if settlement >= maturity:
+        raise FoundError(err=Error.errors["#NUM!"])
+    if redemption <= 0 or pr <= 0:
+        raise FoundError(err=Error.errors["#NUM!"])
+    dates = settlement, maturity
+    return (redemption - pr) / redemption, dates, basis
+
+
+def xdisc(num, dates, basis=0):
+    yf = day_count(*dates, basis=basis) / year_days(*dates, basis=basis)
+    return num / yf
+
+
+FUNCTIONS['DISC'] = wrap_ufunc(
+    xdisc,
+    input_parser=lambda num, dates, basis: (num, dates, parse_basis(basis)),
+    args_parser=args_parser_disc,
+    excluded={0, 1}
+)
+
+
+def xdb(cost, salvage, life, period, month=12):
+    if cost > 0 and salvage >= 0 and life > 0 and period > 0 and 0 < month < 13:
+        rate = round(1 - (salvage / cost) ** (1 / life), 3)
+        period = int(period)
+        month = int(month)
+        life = int(life)
+        if period > (life if month == 12 else (life + 1)):
+            raise FoundError(err=Error.errors["#NUM!"])
+
+        depk = cost * rate * (month / 12.0)
+        dep_cum = 0
+
+        for k in range(2, min(period, life) + 1):
+            dep_cum += depk
+            base = cost - dep_cum
+            depk = base * rate
+        if month != 12 and period == (life + 1):
+            dep_cum += depk
+            base = cost - dep_cum
+            depk = base * rate * ((12 - month) / 12.0)
+        return depk
+
+    raise FoundError(err=Error.errors["#NUM!"])
+
+
+FUNCTIONS['DB'] = wrap_ufunc(xdb, input_parser=convert2float)
+
+
+def xddb(cost, salvage, life, period, factor=2):
+    if cost >= 0 and salvage >= 0 and salvage <= cost and 1 <= period <= life and factor > 0:
+        p0 = float(period) - 1.0  # Start semi-period.
+        p1 = float(period)  # End semi-period.
+        rate = factor / life
+        if rate >= 1:
+            new_value = 0
+            old_value = cost if period == 1 else 0
+        else:
+            base = 1.0 - rate
+            old_value = cost * (base ** (period - 1))
+            new_value = cost * (base ** period)
+        return max(old_value - max(new_value, salvage), 0)
+
+    raise FoundError(err=Error.errors["#NUM!"])
+
+
+FUNCTIONS['DDB'] = wrap_ufunc(xddb, input_parser=convert2float)
+
+
+def xdollarde(fractional, denominator):
+    fractional = parse_basis(fractional, _convert2float)
+    denominator = int(parse_basis(denominator, _convert2float))
+    if denominator > 0:
+        int_part = np.trunc(fractional)
+        frac_part = fractional - int_part
+        scale10 = 10 ** np.ceil(np.log10(denominator))
+        return int_part + (frac_part * scale10) / denominator
+    elif denominator == 0:
+        raise FoundError(err=Error.errors["#DIV/0!"])
+    raise FoundError(err=Error.errors["#NUM!"])
+
+
+def xdollarfr(decimal_dollar, fraction):
+    decimal_dollar = parse_basis(decimal_dollar, _convert2float)
+    fraction = int(parse_basis(fraction, _convert2float))
+    if fraction > 0:
+        result = int(decimal_dollar)
+        result += (decimal_dollar % 1) * np.pow(10, -np.ceil(
+            np.log(fraction) / np.log(10)
+        )) * fraction
+
+        return result
+
+    raise FoundError(err=Error.errors["#NUM!"])
+
+
+FUNCTIONS['DOLLARDE'] = wrap_ufunc(xdollarde, input_parser=lambda *a: a)
+FUNCTIONS['DOLLARFR'] = wrap_ufunc(xdollarfr, input_parser=lambda *a: a)
 
 
 def _xnpv(values, dates=None, min_date=0):
