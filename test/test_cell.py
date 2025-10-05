@@ -23,6 +23,10 @@ def inp_ranges(*rng):
 @ddt.ddt
 class TestCell(unittest.TestCase):
     @ddt.idata([
+        ('A1', '=FVSCHEDULE(TRUE,{#N/A,2})', {}, "<Ranges>(A1)=[[#VALUE!]]"),
+        ('A1', '=FVSCHEDULE("1/1/1987",{1,2})', {},
+         "<Ranges>(A1)=[[190668.0]]"),
+        ('A1', '=FVSCHEDULE(1,{7,6})', {}, "<Ranges>(A1)=[[56.0]]"),
         ('A1', '=DOLLARFR(1.7816666666666663,3.2)', {},
          "<Ranges>(A1)=[[1.2345]]"),
         ('A1', '=DOLLARDE(1.2345,3.2)', {},

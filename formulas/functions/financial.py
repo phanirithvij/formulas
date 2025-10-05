@@ -505,6 +505,53 @@ FUNCTIONS['FV'] = wrap_ufunc(
 )
 
 
+def args_parser_fvschedule(principal, schedule):
+    schedule = tuple(flatten(schedule, None, drop_empty=True))
+    for v in schedule:
+        if not isinstance(v, (int, float)) or isinstance(v, bool):
+            return principal, get_error(v) or Error.errors['#VALUE!']
+    return replace_empty(principal), np.prod(1 + np.array(schedule))
+
+
+def xfvschedule(principal, prod):
+    principal = parse_basis(principal, _convert2float)
+    raise_errors(prod)
+    return principal * prod
+
+
+FUNCTIONS['FVSCHEDULE'] = wrap_ufunc(
+    xfvschedule, input_parser=lambda *a: a,
+    check_error=lambda *args: None,
+    args_parser=args_parser_fvschedule,
+    excluded={1}
+)
+
+
+def xispmt(rate, per, nper, pv):
+    if not nper:
+        raise FoundError(err=Error.errors['#DIV/0!'])
+    return pv * rate * (per / nper - 1)
+
+
+FUNCTIONS['ISPMT'] = wrap_ufunc(xispmt, input_parser=convert2float)
+
+
+def xsln(cost, salvage, life):
+    if not life:
+        raise FoundError(err=Error.errors['#DIV/0!'])
+    return (cost - salvage) / life
+
+
+def xsyd(cost, salvage, life, per):
+    if per <= 0 or per > life:
+        raise FoundError(err=Error.errors['#NUM!'])
+    return ((cost - salvage) * (life - per + 1) * 2) / (life * (life + 1))
+
+
+FUNCTIONS['SLN'] = wrap_ufunc(xsln, input_parser=convert2float)
+FUNCTIONS['SYD'] = wrap_ufunc(xsyd, input_parser=convert2float)
+
+
 def xcumipmt(rate, nper, pv, start_period, end_period, type, *,
              func=functools.partial(_npf, 'ipmt')):
     args = rate, nper, pv, start_period, end_period, type
