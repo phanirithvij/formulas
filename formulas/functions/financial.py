@@ -12,7 +12,7 @@ Python equivalents of financial Excel functions.
 import itertools
 import functools
 import numpy as np
-from calendar import monthrange, leapdays
+from calendar import monthrange, leapdays, isleap
 from . import (
     get_error, Error, wrap_func, raise_errors, text2num, flatten, Array,
     replace_empty, _text2num, wrap_ufunc, convert2float, _get_single_args,
@@ -57,15 +57,101 @@ def _xcoup(settlement, maturity, frequency, basis=0):
     settlement = xdate2date(*settlement)
 
     while d > settlement:
-        yield max((d.year, d.month, d.day), (1900, 1, 0))
+        yield _to_date(d)
         d = d - dt
-    yield max((d.year, d.month, d.day), (1900, 1, 0))
+    yield _to_date(d)
+
+
+def _to_date(x):
+    return max((x.year, x.month, x.day), (1900, 1, 0))
+
+
+def _build_coupon_schedule(
+        issue, first_interest, settlement, frequency, calc_method):
+    if monthrange(first_interest[0], first_interest[1])[1] == first_interest[2]:
+        dt = relativedelta(months=12 // frequency, day=31)
+    else:
+        dt = relativedelta(months=12 // frequency)
+
+    dates = [first_interest]
+    d = xdate2date(*first_interest)
+    sett = xdate2date(*settlement)
+    v = d
+    if calc_method:
+        i = xdate2date(*issue)
+    else:
+        i = min(d - dt, sett)
+    while v > i:
+        v = v - dt
+        dates.insert(0, _to_date(v))
+    dates.insert(0, _to_date(v))
+
+    # go forwards
+    while d < sett:
+        nxt = d + dt
+        dates.append(_to_date(nxt))
+        d = nxt
+    return dates
 
 
 def parse_basis(basis, func=int):
     if isinstance(basis, bool):
         raise FoundError(err=Error.errors['#VALUE!'])
     return func(basis)
+
+
+def xaccrint(
+        issue, first_interest, settlement, rate, par, frequency, basis=0,
+        calc_method=1):
+    frequency = int(frequency)
+    basis = int(basis)
+    _xcoup_validate(issue, settlement, frequency, basis)
+
+    if rate <= 0 or par <= 0:
+        raise FoundError(err=Error.errors['#NUM!'])
+
+    periods = list(itertools.pairwise(_build_coupon_schedule(
+        issue, first_interest, settlement, frequency, calc_method
+    )))
+
+    total = 0.0
+    if basis in (0, 2, 4):  # US 30/360 & Actual/360 & Eurobond 30/360
+        Di = 360 / frequency
+    elif basis == 3:  # Actual/365
+        Di = 365 / frequency
+    if not calc_method:
+        ncd, pcd = deque(_xcoup(
+            issue, first_interest, frequency, basis
+        ), maxlen=2)
+        if pcd < issue < ncd:
+            periods.insert(0, (pcd, ncd))
+
+    for start, end in periods:
+        s = max(start, issue)
+        e = min(end, settlement)
+        if e > s:
+            if basis == 1:
+                Di = day_count(start, end, basis, exact=True)
+
+            total += day_count(s, e, basis=basis, exact=True) / Di
+    return float(total * par * rate / frequency)
+
+
+FUNCTIONS['ACCRINT'] = wrap_ufunc(
+    xaccrint,
+    input_parser=lambda issue, first_interest, settlement, rate, par, frequency,
+                        basis=0, calc_method=1: (
+        parse_date(issue),
+        parse_date(first_interest),
+        parse_date(settlement),
+        parse_basis(rate, float),
+        parse_basis(par, float),
+        parse_basis(frequency, float),
+        parse_basis(basis),
+        calc_method
+    ),
+    args_parser=lambda *a: map(replace_empty, a)
+)
 
 
 def xaccrintm(issue, settlement, rate, par, basis=0):

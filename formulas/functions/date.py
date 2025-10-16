@@ -348,14 +348,13 @@ def xyearfrac(start_date, end_date, basis=0):
 
 
 def year_days(start_date, end_date, basis):
-    y1, m1, d1 = start_date
-    y2, m2, d2 = end_date
-
     if basis in (0, 2, 4):  # US 30/360 & Actual/360 & Eurobond 30/360
         return 360
     elif basis == 3:  # Actual/365
         return 365
     elif basis == 1:  # Actual/actual
+        y1 = start_date[0]
+        y2 = end_date[0]
         return 365 + calendar.leapdays(y1, y2 + 1) / (y2 - y1 + 1)
 
 
