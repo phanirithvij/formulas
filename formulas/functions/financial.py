@@ -154,6 +154,288 @@ FUNCTIONS['ACCRINT'] = wrap_ufunc(
 )
 
 
+def xprice(
+        settlement, maturity, rate, yld, redemption, frequency, basis=0
+):
+    coupons = list(itertools.pairwise(_xcoup(
+        settlement, maturity, frequency, basis
+    )))
+    if rate < 0 or yld < 0 or redemption <= 0:
+        raise FoundError(err=Error.errors['#NUM!'])
+    c = len(coupons)
+    a = day_count(settlement, coupons[-1][0], basis=basis, exact=True)
+    d = day_count(coupons[-1][1], settlement, basis=basis, exact=True)
+    b = day_count(coupons[-1][1], coupons[-1][0], basis=basis, exact=True)
+    c0 = 100 * rate / frequency
+    c2 = a / b - 1
+    c1 = 1 + yld / frequency
+    r = redemption / c1 ** (c + c2)
+    r -= c0 * (b - a) / b
+    for k in range(1, c + 1):
+        r += c0 / c1 ** (k - 1 + a / b)
+    return r
+
+
+FUNCTIONS['PRICE'] = wrap_ufunc(
+    xprice,
+    input_parser=lambda
+        settlement, maturity, rate, yld, redemption, frequency, basis=0: (
+        parse_date(settlement),
+        parse_date(maturity),
+        parse_basis(rate, float),
+        parse_basis(yld, float),
+        parse_basis(redemption, float),
+        parse_basis(frequency, float),
+        parse_basis(basis)
+    ),
+    args_parser=lambda *a: map(replace_empty, a)
+)
+
+
+def xpricedisc(settlement, maturity, discount, redemption, basis=0):
+    _xcoup_validate(settlement, maturity, 1, basis)
+    if discount <= 0 or redemption <= 0:
+        raise FoundError(err=Error.errors['#NUM!'])
+    DSM = day_count(settlement, maturity, basis, exact=True)
+    B = year_days(settlement, maturity, basis)
+    return redemption * (1 - discount * DSM / B)
+
+
+FUNCTIONS['PRICEDISC'] = wrap_ufunc(
+    xpricedisc,
+    input_parser=lambda settlement, maturity, discount, redemption, basis=0: (
+        parse_date(settlement),
+        parse_date(maturity),
+        parse_basis(discount, float),
+        parse_basis(redemption, float),
+        parse_basis(basis)
+    ),
+    args_parser=lambda *a: map(replace_empty, a)
+)
+
+
+def xpricemat(settlement, maturity, issue, rate, yld, basis=0):
+    _xcoup_validate(settlement, maturity, 1, basis)
+    if rate < 0 or yld < 0:
+        raise FoundError(err=Error.errors['#NUM!'])
+    DSM = day_count(settlement, maturity, basis, exact=True)
+    B = year_days(settlement, maturity, basis)
+    DIM = day_count(issue, maturity, basis, exact=True)
+    A = day_count(issue, settlement, basis, exact=True)
+    res = 100 + (DIM / B * rate * 100)
+    res /= 1 + (DSM / B * yld)
+    return res - A / B * rate * 100
+
+
+FUNCTIONS['PRICEMAT'] = wrap_ufunc(
+    xpricemat,
+    input_parser=lambda settlement, maturity, issue, rate, yld, basis=0: (
+        parse_date(settlement),
+        parse_date(maturity),
+        parse_date(issue),
+        parse_basis(rate, float),
+        parse_basis(yld, float),
+        parse_basis(basis)
+    ),
+    args_parser=lambda *a: map(replace_empty, a)
+)
+
+
+def xyield(
+        settlement, maturity, rate, pr, redemption, frequency, basis=0
+):
+    coupons = list(itertools.pairwise(_xcoup(
+        settlement, maturity, frequency, basis
+    )))
+
+    if rate < 0 or pr <= 0 or redemption <= 0:
+        raise FoundError(err=Error.errors['#NUM!'])
+    if len(coupons) <= 1:
+        DSR = day_count(settlement, maturity, basis=basis, exact=True)
+        A = day_count(coupons[-1][1], settlement, basis=basis, exact=True)
+        E = day_count(coupons[-1][1], coupons[-1][0], basis=basis, exact=True)
+        c0 = rate / frequency
+        c1 = pr / 100 + A / E * c0
+        return (redemption / 100 + c0 - c1) / c1 * frequency * E / DSR
+    c = len(coupons)
+    a = day_count(settlement, coupons[-1][0], basis=basis, exact=True)
+    d = day_count(coupons[-1][1], settlement, basis=basis, exact=True)
+    b = day_count(coupons[-1][1], coupons[-1][0], basis=basis, exact=True)
+    c0 = 100 * rate / frequency
+    c2 = a / b - 1
+    c3 = c0 * (b - a) / b
+
+    def func(yld):
+        c1 = 1 + yld / frequency
+        r = redemption / c1 ** (c + c2) - c3
+        for k in range(1, c + 1):
+            r += c0 / c1 ** (k - 1 + a / b)
+        return r - pr
+
+    from scipy.optimize import newton
+    try:
+        return newton(func, 0, maxiter=100)
+    except RuntimeError:
+        raise FoundError(err=Error.errors['#NUM!'])
+
+
+FUNCTIONS['YIELD'] = wrap_ufunc(
+    xyield,
+    input_parser=lambda
+        settlement, maturity, rate, pr, redemption, frequency, basis=0: (
+        parse_date(settlement),
+        parse_date(maturity),
+        parse_basis(rate, float),
+        parse_basis(pr, float),
+        parse_basis(redemption, float),
+        parse_basis(frequency, float),
+        parse_basis(basis)
+    ),
+    args_parser=lambda *a: map(replace_empty, a)
+)
+
+
+def xyielddisc(settlement, maturity, price, redemption, basis=0):
+    _xcoup_validate(settlement, maturity, 1, basis)
+    if price <= 0 or redemption <= 0:
+        raise FoundError(err=Error.errors['#NUM!'])
+    DSM = day_count(settlement, maturity, basis, exact=True)
+    B = year_days(settlement, maturity, basis)
+    return (redemption / price - 1) / DSM * B
+
+
+FUNCTIONS['YIELDDISC'] = wrap_ufunc(
+    xyielddisc,
+    input_parser=lambda settlement, maturity, price, redemption, basis=0: (
+        parse_date(settlement),
+        parse_date(maturity),
+        parse_basis(price, float),
+        parse_basis(redemption, float),
+        parse_basis(basis)
+    ),
+    args_parser=lambda *a: map(replace_empty, a)
+)
+
+
+def xyieldmat(settlement, maturity, issue, rate, pr, basis=0):
+    _xcoup_validate(settlement, maturity, 1, basis)
+    if rate < 0 or pr <= 0:
+        raise FoundError(err=Error.errors['#NUM!'])
+    Yim = day_count(issue, maturity, basis, exact=True)
+    Yim /= year_days(issue, maturity, basis)
+    Yis = day_count(issue, settlement, basis, exact=True)
+    Yis /= year_days(issue, settlement, basis)
+    Ysm = day_count(settlement, maturity, basis, exact=True)
+    Ysm /= year_days(settlement, maturity, basis)
+    return ((1 + rate * Yim) / (pr / 100 + rate * Yis) - 1) / Ysm
+
+
+FUNCTIONS['YIELDMAT'] = wrap_ufunc(
+    xyieldmat,
+    input_parser=lambda settlement, maturity, issue, rate, pr, basis=0: (
+        parse_date(settlement),
+        parse_date(maturity),
+        parse_date(issue),
+        parse_basis(rate, float),
+        parse_basis(pr, float),
+        parse_basis(basis)
+    ),
+    args_parser=lambda *a: map(replace_empty, a)
+)
+
+
+def xamorlinc(
+        cost, date_purchased, first_period, salvage, period, rate, basis=0
+):
+    period = int(period)
+    if not (cost > 0 and date_purchased <= first_period and salvage >= 0 and
+            period >= 0 and rate > 0):
+        raise FoundError(err=Error.errors['#NUM!'])
+    cr = cost * rate
+    v = day_count(date_purchased, first_period, basis, exact=True)
+    v /= year_days(date_purchased, first_period, basis)
+    v *= cr
+
+    if period == 0:
+        return v
+    v = cost - salvage - v
+    n = int(v / cr)
+    if 1 <= period <= n:
+        return cr
+    if period == n + 1:
+        return v - n * cr
+    return 0
+
+
+FUNCTIONS['AMORLINC'] = wrap_ufunc(
+    xamorlinc,
+    input_parser=lambda
+        cost, date_purchased, first_period, salvage, period, rate, basis=0: (
+        parse_basis(cost, float),
+        parse_date(date_purchased),
+        parse_date(first_period),
+        parse_basis(salvage, float),
+        parse_basis(period, float),
+        parse_basis(rate, float),
+        parse_basis(basis)
+    ),
+    args_parser=lambda *a: map(replace_empty, a)
+)
+
+
+def xamordegrc(
+        cost, date_purchased, first_period, salvage, period, rate, basis=0
+):
+    period = int(period)
+    if not (
+            cost > salvage and date_purchased <= first_period and salvage >= 0 and
+            period >= 0 and rate > 0):
+        raise FoundError(err=Error.errors['#NUM!'])
+    t = int(np.ceil(1 / rate))
+    if period >= t:
+        return 0
+    if t in (3, 4):
+        f = 1.5
+    elif t in (5, 6):
+        f = 2
+    elif t > 6:
+        f = 2.5
+    else:
+        raise FoundError(err=Error.errors['#NUM!'])
+    r = day_count(date_purchased, first_period, basis, exact=True)
+    r /= year_days(date_purchased, first_period, basis)
+    r *= f * cost * rate
+    cap = cost - salvage
+    r_sum = 0
+    r = round(min(r, cap))
+    r_last = None
+    for i in range(3, period + 3):
+        r_sum += r
+        if r_sum > cap:
+            return 0
+        elif i < t:
+            r = f * rate * (cost - r_sum)
+        elif i == t:
+            r = (cost - r_sum) / 2
+    return round(r)
+
+
+FUNCTIONS['AMORDEGRC'] = wrap_ufunc(
+    xamordegrc,
+    input_parser=lambda
+        cost, date_purchased, first_period, salvage, period, rate, basis=0: (
+        parse_basis(cost, float),
+        parse_date(date_purchased),
+        parse_date(first_period),
+        parse_basis(salvage, float),
+        parse_basis(period, float),
+        parse_basis(rate, float),
+        parse_basis(basis)
+    ),
+    args_parser=lambda *a: map(replace_empty, a)
+)
+
+
 def xaccrintm(issue, settlement, rate, par, basis=0):
     _xcoup_validate(issue, settlement, 1, basis)
     if isinstance(rate, bool) or isinstance(par, bool):
