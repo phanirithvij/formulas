@@ -19,7 +19,7 @@ from dateutil.relativedelta import relativedelta
 from . import (
     wrap_ufunc, Error, FoundError, wrap_func, raise_errors, flatten,
     is_number, COMPILING, wrap_impure_func, text2num, replace_empty,
-    _get_single_args
+    _get_single_args, _convert2float
 )
 
 FUNCTIONS = {}
@@ -106,8 +106,6 @@ def xday(serial_number, n=2):
         return _int2date(serial_number)[n]
     except ValueError:
         return _text2datetime(serial_number)[n]
-    except FoundError as ex:
-        return ex.err
 
 
 FUNCTIONS['DAY'] = wrap_ufunc(
@@ -379,3 +377,28 @@ def day_count(start_date, end_date, basis, exact=False):
 
 
 FUNCTIONS['YEARFRAC'] = wrap_func(xyearfrac)
+
+
+def xdays(end_date, start_date):
+    raise_errors(end_date)
+    end_date = xday(end_date, slice(0, 3))
+    raise_errors(start_date)
+    start_date = xday(start_date, slice(0, 3))
+    return day_count(start_date, end_date, 1)
+
+
+def xdays360(start_date, end_date, method=False):
+    raise_errors(start_date)
+    start_date = xday(start_date, slice(0, 3))
+    raise_errors(end_date)
+    end_date = xday(end_date, slice(0, 3))
+    raise_errors(method)
+    return day_count(start_date, end_date, 4 if _convert2float(method) else 0)
+
+
+FUNCTIONS['_XLFN.DAYS'] = FUNCTIONS['DAYS'] = wrap_ufunc(
+    xdays, input_parser=lambda *a: a, check_error=lambda *a: None
+)
+FUNCTIONS['_XLFN.DAYS360'] = FUNCTIONS['DAYS360'] = wrap_ufunc(
+    xdays360, input_parser=lambda *a: a, check_error=lambda *a: None
+)
