@@ -463,6 +463,80 @@ FUNCTIONS['ACCRINTM'] = wrap_ufunc(
 )
 
 
+def xtbilleq(settlement, maturity, discount):
+    settlement = parse_date(replace_empty(np.atleast_2d(settlement)).item())
+    maturity = parse_date(replace_empty(np.atleast_2d(maturity)).item())
+    discount = parse_basis(replace_empty(np.atleast_2d(
+        discount
+    ).item()), _convert2float)
+    raise_errors(settlement, maturity, discount)
+    _xcoup_validate(settlement, maturity, 1, 0)
+
+    if not (0 < discount <= 1) or maturity > (
+            settlement[0] + 1, settlement[1], settlement[2]
+    ):
+        raise FoundError(err=Error.errors['#NUM!'])
+
+    days = day_count(settlement, maturity, basis=1, exact=True)
+    if days <= 182:
+        res = 365 * discount / (360 - days * discount)
+    else:
+        v = days / 365
+        P = 100.0 * (1.0 - discount * days / 360.0)
+        res = (np.sqrt(v * v - (2 * v - 1) * (1 - 100 / P)) - v) / (v - 0.5)
+
+    if res < 0:
+        raise FoundError(err=Error.errors['#NUM!'])
+    return res
+
+
+FUNCTIONS['TBILLEQ'] = wrap_func(xtbilleq)
+
+
+def xtbillprice(settlement, maturity, discount):
+    settlement = parse_date(replace_empty(np.atleast_2d(settlement)).item())
+    maturity = parse_date(replace_empty(np.atleast_2d(maturity)).item())
+    discount = parse_basis(replace_empty(np.atleast_2d(
+        discount
+    ).item()), _convert2float)
+    raise_errors(settlement, maturity, discount)
+    _xcoup_validate(settlement, maturity, 1, 0)
+
+    if not (0 < discount <= 1) or maturity > (
+            settlement[0] + 1, settlement[1], settlement[2]
+    ):
+        raise FoundError(err=Error.errors['#NUM!'])
+
+    days = day_count(settlement, maturity, basis=1, exact=True)
+    res = 100 * (1 - days * discount / 360)
+    if res < 0:
+        raise FoundError(err=Error.errors['#NUM!'])
+    return res
+
+
+FUNCTIONS['TBILLPRICE'] = wrap_func(xtbillprice)
+
+
+def xtbillyield(settlement, maturity, pr):
+    settlement = parse_date(replace_empty(np.atleast_2d(settlement)).item())
+    maturity = parse_date(replace_empty(np.atleast_2d(maturity)).item())
+    pr = parse_basis(replace_empty(np.atleast_2d(pr).item()), _convert2float)
+    raise_errors(settlement, maturity, pr)
+    _xcoup_validate(settlement, maturity, 1, 0)
+
+    if pr <= 0 or maturity > (
+            settlement[0] + 1, settlement[1], settlement[2]
+    ):
+        raise FoundError(err=Error.errors['#NUM!'])
+
+    days = day_count(settlement, maturity, basis=1, exact=True)
+
+    return (100 - pr) / pr * (360 / days)
+
+
+FUNCTIONS['TBILLYIELD'] = wrap_func(xtbillyield)
+
+
 def xcoupnum(settlement, maturity, frequency, basis=0, *, coupons=()):
     n = -1
     for ncd in coupons or _xcoup(settlement, maturity, frequency, basis):
