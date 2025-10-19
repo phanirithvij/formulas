@@ -14,12 +14,14 @@ import calendar
 import datetime
 import functools
 import collections
+import re
+import numpy as np
 import schedula as sh
 from dateutil.relativedelta import relativedelta
 from . import (
     wrap_ufunc, Error, FoundError, wrap_func, raise_errors, flatten,
     is_number, COMPILING, wrap_impure_func, text2num, replace_empty,
-    _get_single_args, _convert2float
+    _get_single_args, _convert2float, get_error
 )
 
 FUNCTIONS = {}
@@ -401,4 +403,158 @@ FUNCTIONS['_XLFN.DAYS'] = FUNCTIONS['DAYS'] = wrap_ufunc(
 )
 FUNCTIONS['_XLFN.DAYS360'] = FUNCTIONS['DAYS360'] = wrap_ufunc(
     xdays360, input_parser=lambda *a: a, check_error=lambda *a: None
+)
+
+
+def xnetworkdays_intl(start_date, end_date, weekend=1, holidays=()):
+    raise_errors(start_date)
+    start_date = datetime.date(*xday(start_date, slice(0, 3)))
+    raise_errors(end_date)
+    end_date = datetime.date(*xday(end_date, slice(0, 3)))
+    if isinstance(weekend, (int, float, bool)):
+        try:
+            wm = {
+                1: '1111100',  # Sat, Sun
+                2: '0111110',  # Sun, Mon
+                3: '0011111',  # Mon, Tue
+                4: '1001111',  # Tue, Wed
+                5: '1100111',  # Wed, Thu
+                6: '1110011',  # Thu, Fri
+                7: '1111001',  # Fri, Sat
+                11: '1111110',  # Sun only
+                12: '0111111',  # Mon only
+                13: '1011111',  # Tue only
+                14: '1101111',  # Wed only
+                15: '1110111',  # Thu only
+                16: '1111011',  # Fri only
+                17: '1111101',  # Sat only
+            }[int(weekend)]
+        except KeyError:
+            raise FoundError(err=Error.errors['#NUM!'])
+
+    elif isinstance(weekend, str) and re.match('[01]{7}', weekend):
+        wm = ''.join('1' if v == '0' else '0' for v in weekend)
+    else:
+        raise FoundError(err=Error.errors['#VALUE!'])
+
+    if start_date <= end_date:
+        end_date += relativedelta(days=1)
+    else:
+        end_date -= relativedelta(days=1)
+    return np.busday_count(start_date, end_date, weekmask=wm, holidays=holidays)
+
+
+def args_xnetworkdays_intl(
+        start_date, end_date, weekend=1, holidays=(), true_err=False):
+    holidays = set(flatten([replace_empty(holidays)], None))
+    if any(isinstance(v, bool) for v in holidays):
+        raise FoundError(err=Error.errors['#VALUE!'])
+
+    err = get_error(holidays)
+    if err:
+        raise FoundError(err=err if true_err else Error.errors['#VALUE!'])
+
+    holidays = {xday(v, slice(0, 3)) for v in holidays}
+    return (
+        replace_empty(start_date), replace_empty(end_date),
+        replace_empty(weekend), tuple(
+            datetime.date(1900, 1, 1)
+            if v == (1900, 1, 0) else datetime.date(*v)
+            for v in holidays
+        )
+    )
+
+
+FUNCTIONS['NETWORKDAYS.INTL'] = wrap_ufunc(
+    xnetworkdays_intl,
+    input_parser=lambda *a: a,
+    check_error=lambda *a: None,
+    args_parser=args_xnetworkdays_intl,
+    excluded={3}
+)
+FUNCTIONS['NETWORKDAYS'] = wrap_ufunc(
+    xnetworkdays_intl,
+    input_parser=lambda *a: a,
+    check_error=lambda *a: None,
+    args_parser=lambda start_date, end_date, hdays=(): args_xnetworkdays_intl(
+        start_date, end_date, 1, hdays, True
+    ),
+    excluded={3}
+)
+
+
+def args_xworkday_intl(start_date, days, weekend=1, holidays=(),
+                       true_err=False):
+    holidays = set(flatten([replace_empty(holidays)], None))
+    if any(isinstance(v, bool) for v in holidays):
+        raise FoundError(err=Error.errors['#VALUE!'])
+
+    err = get_error(holidays)
+    if err:
+        raise FoundError(err=err if true_err else Error.errors['#NUM!'])
+    holidays = {xday(v, slice(0, 3)) for v in holidays}
+    return (
+        replace_empty(start_date), replace_empty(days),
+        replace_empty(weekend), tuple(
+            datetime.date(1900, 1, 1)
+            if v == (1900, 1, 0) else datetime.date(*v)
+            for v in holidays
+        )
+    )
+
+
+def xworkday_intl(start_date, days, weekend=1, holidays=()):
+    raise_errors(start_date)
+    start_date = datetime.date(*xday(start_date, slice(0, 3)))
+    raise_errors(days)
+    days = _convert2float(days)
+    if isinstance(weekend, (int, float, bool)):
+        try:
+            wm = {
+                1: '1111100',  # Sat, Sun
+                2: '0111110',  # Sun, Mon
+                3: '0011111',  # Mon, Tue
+                4: '1001111',  # Tue, Wed
+                5: '1100111',  # Wed, Thu
+                6: '1110011',  # Thu, Fri
+                7: '1111001',  # Fri, Sat
+                11: '1111110',  # Sun only
+                12: '0111111',  # Mon only
+                13: '1011111',  # Tue only
+                14: '1101111',  # Wed only
+                15: '1110111',  # Thu only
+                16: '1111011',  # Fri only
+                17: '1111101',  # Sat only
+            }[int(weekend)]
+        except KeyError:
+            raise FoundError(err=Error.errors['#NUM!'])
+
+    elif isinstance(weekend, str) and not get_error(weekend):
+        if re.match('[01]{7}', weekend):
+            wm = ''.join('1' if v == '0' else '0' for v in weekend)
+        else:
+            raise FoundError(err=Error.errors['#VALUE!'])
+    else:
+        raise FoundError(err=Error.errors['#NUM!'])
+    date = np.busday_offset(
+        start_date, days, weekmask=wm, holidays=holidays
+    ).astype('O')
+    return xdate(date.year, date.month, date.day)
+
+
+FUNCTIONS['WORKDAY.INTL'] = wrap_ufunc(
+    xworkday_intl,
+    input_parser=lambda *a: a,
+    check_error=lambda *a: None,
+    args_parser=args_xworkday_intl,
+    excluded={3}
+)
+FUNCTIONS['WORKDAY'] = wrap_ufunc(
+    xworkday_intl,
+    input_parser=lambda *a: a,
+    check_error=lambda *a: None,
+    args_parser=lambda start_date, days, hdays=(): args_xworkday_intl(
+        start_date, days, 1, hdays, True
+    ),
+    excluded={3}
 )
