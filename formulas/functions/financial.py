@@ -838,6 +838,70 @@ def xddb(cost, salvage, life, period, factor=2):
 FUNCTIONS['DDB'] = wrap_ufunc(xddb, input_parser=convert2float)
 
 
+def xoddlprice(settlement, maturity, last_interest, rate, yld, redemption,
+               frequency, basis=0):
+    _xcoup_validate(settlement, maturity, frequency, basis)
+    if last_interest >= settlement or rate < 0 or yld <= 0 or redemption <= 0:
+        raise FoundError(err=Error.errors['#NUM!'])
+    DCi = day_count(last_interest, maturity, basis=basis, exact=True)
+    DCi /= year_days(last_interest, maturity, basis=basis)
+    DSCi = day_count(settlement, maturity, basis=basis, exact=True)
+    DSCi /= year_days(settlement, maturity, basis=basis)
+    Ai = day_count(last_interest, settlement, basis=basis, exact=True)
+    Ai /= year_days(last_interest, settlement, basis=basis)
+    return (redemption + 100 * DCi * rate) / (DSCi * yld + 1) - 100 * Ai * rate
+
+
+FUNCTIONS['ODDLPRICE'] = wrap_ufunc(
+    xoddlprice,
+    input_parser=lambda
+        settlement, maturity, last_interest, rate, yld, redemption, frequency,
+        basis=0: (
+        parse_date(settlement),
+        parse_date(maturity),
+        parse_date(last_interest),
+        parse_basis(rate, float),
+        parse_basis(yld, float),
+        parse_basis(redemption, float),
+        parse_basis(frequency, float),
+        parse_basis(basis)
+    ),
+    args_parser=lambda *a: map(replace_empty, a)
+)
+
+
+def xoddlyield(settlement, maturity, last_interest, rate, pr, redemption,
+               frequency, basis=0):
+    _xcoup_validate(settlement, maturity, frequency, basis)
+    if last_interest >= settlement or rate < 0 or pr <= 0 or redemption <= 0:
+        raise FoundError(err=Error.errors['#NUM!'])
+    DCi = day_count(last_interest, maturity, basis=basis, exact=True)
+    DCi /= year_days(last_interest, maturity, basis=basis)
+    DSCi = day_count(settlement, maturity, basis=basis, exact=True)
+    DSCi /= year_days(settlement, maturity, basis=basis)
+    Ai = day_count(last_interest, settlement, basis=basis, exact=True)
+    Ai /= year_days(last_interest, settlement, basis=basis)
+    return ((redemption + 100 * DCi * rate) / (pr + 100 * Ai * rate) - 1) / DSCi
+
+
+FUNCTIONS['ODDLYIELD'] = wrap_ufunc(
+    xoddlyield,
+    input_parser=lambda
+        settlement, maturity, last_interest, rate, pr, redemption, frequency,
+        basis=0: (
+        parse_date(settlement),
+        parse_date(maturity),
+        parse_date(last_interest),
+        parse_basis(rate, float),
+        parse_basis(pr, float),
+        parse_basis(redemption, float),
+        parse_basis(frequency, float),
+        parse_basis(basis)
+    ),
+    args_parser=lambda *a: map(replace_empty, a)
+)
+
+
 def xdollarde(fractional, denominator):
     fractional = parse_basis(fractional, _convert2float)
     denominator = int(parse_basis(denominator, _convert2float))
