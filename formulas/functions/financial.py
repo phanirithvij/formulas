@@ -838,6 +838,187 @@ def xddb(cost, salvage, life, period, factor=2):
 FUNCTIONS['DDB'] = wrap_ufunc(xddb, input_parser=convert2float)
 
 
+def xoddfprice(settlement, maturity, issue, first_coupon, rate, yld, redemption,
+               frequency, basis=0):
+    if (not (maturity > first_coupon > settlement > issue) or rate < 0 or
+            yld <= 0 or redemption <= 0):
+        raise FoundError(err=Error.errors['#NUM!'])
+    cps_sm = tuple(_xcoup(settlement, maturity, frequency, basis))
+    cps_sf = tuple(_xcoup(settlement, first_coupon, frequency, basis))
+    e = xcoupdays(
+        settlement, first_coupon, frequency, basis=basis, coupons=cps_sf
+    )
+    dfc = day_count(issue, first_coupon, basis=basis, exact=True)
+    x = 1 + yld / frequency
+    cpt = 100 * rate / frequency
+
+    if dfc < e:
+        n = xcoupnum(settlement, maturity, frequency, basis, coupons=cps_sm)
+        dsc = day_count(settlement, first_coupon, basis=basis, exact=True)
+        a = day_count(issue, settlement, basis=basis, exact=True)
+        y = dsc / e
+        p3 = x ** (n - 1 + y)
+        res = redemption / p3 + cpt * dfc / e / x ** y
+        res += sum((cpt / x ** (i + y) for i in range(1, n)), 0)
+        res -= a / e * cpt
+    else:
+        cps_if = tuple(_xcoup(issue, first_coupon, frequency, basis))
+        dcnl = 0
+        anl = 0
+        for index, (start, end) in enumerate(itertools.pairwise(cps_if[::-1])):
+            nl = day_count(
+                start, end, basis=basis, exact=True
+            ) if basis == 1 else e
+            dci = nl if index else max(0, day_count(
+                issue, end, basis=basis, exact=True
+            ))
+            a = max(0, day_count(
+                max(issue, start), min(settlement, end), basis=basis, exact=True
+            ))
+            dcnl += dci / nl
+            anl += a / nl
+
+        if basis in (2, 3):
+            ncd = cps_sf[-2]
+            dsc = day_count(
+                settlement, ncd, basis=basis, exact=True
+            )
+        else:
+            pcd = cps_sf[-1]
+            dsc = e - day_count(
+                pcd, settlement, basis=basis, exact=True
+            )
+        nq = xcoupnum(
+            settlement, first_coupon, frequency, basis, coupons=cps_sf
+        ) - 1
+        n = xcoupnum(first_coupon, maturity, frequency, basis)
+        y = dsc / e
+        p3 = x ** (nq + n + y)
+        res = redemption / p3 + cpt * dcnl / x ** (nq + y)
+        res += sum((cpt / x ** (i + y) for i in range(nq + 1, nq + n + 1)), 0)
+        res -= anl * cpt
+    return res
+
+
+FUNCTIONS['ODDFPRICE'] = wrap_ufunc(
+    xoddfprice,
+    input_parser=lambda
+        settlement, maturity, issue, first_coupon, rate, yld, redemption,
+        frequency, basis=0: (
+        parse_date(settlement),
+        parse_date(maturity),
+        parse_date(issue),
+        parse_date(first_coupon),
+        parse_basis(rate, float),
+        parse_basis(yld, float),
+        parse_basis(redemption, float),
+        parse_basis(frequency, float),
+        parse_basis(basis)
+    ),
+    args_parser=lambda *a: map(replace_empty, a)
+)
+
+
+def xoddfyield(settlement, maturity, issue, first_coupon, rate, pr, redemption,
+               frequency, basis=0):
+    if (not (maturity > first_coupon > settlement > issue) or rate < 0 or
+            pr <= 0 or redemption <= 0):
+        raise FoundError(err=Error.errors['#NUM!'])
+    cps_sm = tuple(_xcoup(settlement, maturity, frequency, basis))
+    cps_sf = tuple(_xcoup(settlement, first_coupon, frequency, basis))
+    e = xcoupdays(
+        settlement, first_coupon, frequency, basis=basis, coupons=cps_sf
+    )
+    dfc = day_count(issue, first_coupon, basis=basis, exact=True)
+
+    cpt = 100 * rate / frequency
+
+    if dfc < e:
+        n = xcoupnum(settlement, maturity, frequency, basis, coupons=cps_sm)
+        dsc = day_count(settlement, first_coupon, basis=basis, exact=True)
+        a = day_count(issue, settlement, basis=basis, exact=True)
+        y = dsc / e
+        cpt_dfc_e = cpt * dfc / e
+        trg = a / e * cpt + pr
+        n_1_y = n - 1 + y
+
+        def func(yld):
+            x = 1 + yld / frequency
+            res = redemption / x ** n_1_y + cpt_dfc_e / x ** y
+            res += sum((cpt / x ** (i + y) for i in range(1, n)), 0)
+            return res - trg
+    else:
+        cps_if = tuple(_xcoup(issue, first_coupon, frequency, basis))
+        dcnl = 0
+        anl = 0
+        for index, (start, end) in enumerate(itertools.pairwise(cps_if[::-1])):
+            nl = day_count(
+                start, end, basis=basis, exact=True
+            ) if basis == 1 else e
+            dci = nl if index else max(0, day_count(
+                issue, end, basis=basis, exact=True
+            ))
+            a = max(0, day_count(
+                max(issue, start), min(settlement, end), basis=basis, exact=True
+            ))
+            dcnl += dci / nl
+            anl += a / nl
+
+        if basis in (2, 3):
+            ncd = cps_sf[-2]
+            dsc = day_count(
+                settlement, ncd, basis=basis, exact=True
+            )
+        else:
+            pcd = cps_sf[-1]
+            dsc = e - day_count(
+                pcd, settlement, basis=basis, exact=True
+            )
+        nq = xcoupnum(
+            settlement, first_coupon, frequency, basis, coupons=cps_sf
+        ) - 1
+        n = xcoupnum(first_coupon, maturity, frequency, basis)
+        y = dsc / e
+        trg = anl * cpt + pr
+        nqy = nq + y
+        nqny = nqy + n
+        cpt_dcnl = cpt * dcnl
+
+        def func(yld):
+            x = 1 + yld / frequency
+            res = redemption / x ** nqny + cpt_dcnl / x ** nqy
+            res += sum((
+                cpt / x ** (i + y) for i in range(nq + 1, nq + n + 1)
+            ), 0)
+            return res - trg
+
+    from scipy.optimize import newton
+    try:
+        return newton(func, 0, maxiter=100)
+    except RuntimeError:
+        raise FoundError(err=Error.errors['#NUM!'])
+    return res
+
+
+FUNCTIONS['ODDFYIELD'] = wrap_ufunc(
+    xoddfyield,
+    input_parser=lambda
+        settlement, maturity, issue, first_coupon, rate, pr, redemption,
+        frequency, basis=0: (
+        parse_date(settlement),
+        parse_date(maturity),
+        parse_date(issue),
+        parse_date(first_coupon),
+        parse_basis(rate, float),
+        parse_basis(pr, float),
+        parse_basis(redemption, float),
+        parse_basis(frequency, float),
+        parse_basis(basis)
+    ),
+    args_parser=lambda *a: map(replace_empty, a)
+)
+
+
 def xoddlprice(settlement, maturity, last_interest, rate, yld, redemption,
                frequency, basis=0):
     _xcoup_validate(settlement, maturity, frequency, basis)
