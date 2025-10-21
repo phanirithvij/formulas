@@ -368,8 +368,6 @@ def day_count(start_date, end_date, basis, exact=False):
         elif basis == 0 and d1 in (28, 29):
             if calendar.monthrange(y1, m1)[1] == d1:
                 d1 = 30
-                if calendar.monthrange(y2, m2)[1] == d2:
-                    d2 = 30
         n_days = 360 * (y2 - y1) + 30 * (m2 - m1) + (d2 - d1)
     else:  # Actual/actual & Actual/360 & Actual/365
         n_days = xdate(y2, m2, d2) - xdate(y1, m1, d1)
