@@ -471,10 +471,10 @@ def xnumbervalue(text, decimal_sep=None, group_sep=None):
     d_esc = re.escape(d)
     number = rf'\s*[\d{g_esc}]+(?:{d_esc}[\s\d]*)?(?:\s*[eE]\s*[+-]\s*\d[\s\d]*)?[\s%]*'
     if {'(', ')'}.intersection({g, d}):
-        m = re.match(f'^\s*[+-]?{number}$', text)
+        m = re.match(f'^\\s*[+-]?{number}$', text)
     else:
         m = re.match(
-            f'(?:^\s*[+-]?{number}$)|(?:^\s*\({number}\)[\s%]*$)', text
+            f'(?:^\\s*[+-]?{number}$)|(?:^\\s*\\({number}\\)[\\s%]*$)', text
         )
     if not m:
         return Error.errors['#VALUE!']
@@ -945,12 +945,8 @@ def xarraytotext(array, format_type=0):
             for v in flatten(array, None)
         )
     elif format_type == 1:
-        if len(array.shape) == 1:
-            r = ', '.join(
-                _xvaluetotext(v, format_type)
-                for v in flatten(array, None)
-            )
-        elif len(array.shape) == 2:
+        array = np.atleast_2d(array)
+        if len(array.shape) == 2:
             r = ';'.join(
                 ','.join(_xvaluetotext(v, format_type) for v in row)
                 for row in array
