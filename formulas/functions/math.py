@@ -436,6 +436,35 @@ FUNCTIONS['SUMIFS'] = wrap_func(functools.partial(xfilters, xsum))
 FUNCTIONS['SUMSQ'] = wrap_func(functools.partial(
     xsum, func=lambda v: np.sum(np.square(v))
 ))
+
+
+def sumx2my2(array_x, array_y, func=lambda x, y: np.sum(x ** 2 - y ** 2)):
+    raise_errors(array_x, array_y)
+    array_x = np.asarray(array_x).reshape(-1, 1)
+    array_y = np.asarray(array_y).reshape(-1, 1)
+
+    if array_x.size != array_y.size:
+        raise FoundError(err=Error.errors['#N/A'])
+    inp = np.concatenate((array_x, array_y), 1)
+    from .look import _vect_get_type_id
+    inp = replace_empty(inp[(
+            inp != np.array(sh.EMPTY, dtype=object)
+    ).all(axis=1)])
+    inp = inp[(_vect_get_type_id(inp) == 0).all(axis=1)]
+    if inp.size == 0:
+        raise FoundError(err=Error.errors['#DIV/0!'])
+
+    return func(*inp.astype(float).T)
+
+
+FUNCTIONS['SUMX2MY2'] = wrap_func(sumx2my2)
+FUNCTIONS['SUMX2PY2'] = wrap_func(functools.partial(
+    sumx2my2, func=lambda x, y: np.sum(x ** 2 + y ** 2)
+))
+FUNCTIONS['SUMXMY2'] = wrap_func(functools.partial(
+    sumx2my2, func=lambda x, y: np.sum((x - y) ** 2)
+))
+
 FUNCTIONS['TAN'] = wrap_ufunc(np.tan)
 FUNCTIONS['TANH'] = wrap_ufunc(np.tanh)
 
