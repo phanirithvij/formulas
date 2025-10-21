@@ -631,9 +631,9 @@ def xnorminv(z, mu=0, sigma=1):
 
 FUNCTIONS['_XLFN.NORM.DIST'] = FUNCTIONS['NORM.DIST'] = wrap_ufunc(
     xnormdist,
-    input_parser=lambda *a: tuple(
-        map(_convert_args, a[:-1])
-    ) + tuple(map(_parse_cumulative, a[-1:]))
+    input_parser=lambda z, mu, sigma, cumulative=True: tuple(
+        map(_convert_args, (z, mu, sigma))
+    ) + (_parse_cumulative(cumulative),)
 )
 FUNCTIONS['_XLFN.NORM.INV'] = FUNCTIONS['NORM.INV'] = wrap_ufunc(
     xnorminv,
@@ -659,9 +659,9 @@ def xweibulldist(x, alfa, beta, cumulative=True):
 
 FUNCTIONS['_XLFN.WEIBULL.DIST'] = FUNCTIONS['WEIBULL.DIST'] = wrap_ufunc(
     xweibulldist,
-    input_parser=lambda *a: tuple(
-        map(_convert_args, a[:-1])
-    ) + tuple(map(_parse_cumulative, a[-1:]))
+    input_parser=lambda x, alfa, beta, cumulative=True: tuple(
+        map(_convert_args, (x, alfa, beta))
+    ) + (_parse_cumulative(cumulative),)
 )
 
 
@@ -680,9 +680,9 @@ def xlognorminv(z, mu=0, sigma=1):
 
 FUNCTIONS['_XLFN.LOGNORM.DIST'] = FUNCTIONS['LOGNORM.DIST'] = wrap_ufunc(
     xlognormdist,
-    input_parser=lambda *a: tuple(
-        map(_convert_args, a[:-1])
-    ) + tuple(map(_parse_cumulative, a[-1:]))
+    input_parser=lambda z, mu, sigma, cumulative=True: tuple(
+        map(_convert_args, (z, mu, sigma))
+    ) + (_parse_cumulative(cumulative),)
 )
 FUNCTIONS['_XLFN.LOGNORM.INV'] = FUNCTIONS['LOGNORM.INV'] = wrap_ufunc(
     xlognorminv,
@@ -762,15 +762,15 @@ def xbinominv(trials, probability_s, alpha):
 
 FUNCTIONS['_XLFN.NEGBINOM.DIST'] = FUNCTIONS['NEGBINOM.DIST'] = wrap_ufunc(
     xnegbinomdist,
-    input_parser=lambda *a: tuple(
-        map(_convert_args, a[:-1])
-    ) + tuple(map(_parse_cumulative, a[-1:]))
+    input_parser=lambda number_s, trials, probability_s, cumulative=True: tuple(
+        map(_convert_args, (number_s, trials, probability_s))
+    ) + (_parse_cumulative(cumulative),)
 )
 FUNCTIONS['_XLFN.BINOM.DIST'] = FUNCTIONS['BINOM.DIST'] = wrap_ufunc(
     xbinomdist,
-    input_parser=lambda *a: tuple(
-        map(_convert_args, a[:-1])
-    ) + tuple(map(_parse_cumulative, a[-1:]))
+    input_parser=lambda number_s, trials, probability_s, cumulative=True: tuple(
+        map(_convert_args, (number_s, trials, probability_s))
+    ) + (_parse_cumulative(cumulative),)
 )
 FUNCTIONS['BINOM.DIST.RANGE'] = wrap_ufunc(
     xbinomdistrange,
@@ -874,9 +874,9 @@ def xchisqtest(actual_range, expected_range):
 
 FUNCTIONS['_XLFN.CHISQ.DIST'] = FUNCTIONS['CHISQ.DIST'] = wrap_ufunc(
     xchisqdist,
-    input_parser=lambda *a: tuple(
-        map(_convert_args, a[:-1])
-    ) + tuple(map(_parse_cumulative, a[-1:]))
+    input_parser=lambda x, deg_freedom, cumulative=True: tuple(
+        map(_convert_args, (x, deg_freedom))
+    ) + (_parse_cumulative(cumulative),)
 )
 FUNCTIONS['_XLFN.CHISQ.INV'] = FUNCTIONS['CHISQ.INV'] = wrap_ufunc(
     xchisqinv,
@@ -1043,25 +1043,20 @@ def xftest(array1, array2):
 
 FUNCTIONS['_XLFN.F.DIST'] = FUNCTIONS['F.DIST'] = wrap_ufunc(
     xfdist,
-    input_parser=lambda *a: tuple(
-        map(_convert_args, a[:-1])
-    ) + tuple(map(_parse_cumulative, a[-1:]))
+    input_parser=lambda x, deg_freedom1, deg_freedom2, cumulative=True: tuple(
+        map(_convert_args, (x, deg_freedom1, deg_freedom2))
+    ) + (_parse_cumulative(cumulative),)
 )
 FUNCTIONS['_XLFN.F.INV'] = FUNCTIONS['F.INV'] = wrap_ufunc(
-    xfinv,
-    input_parser=lambda *a: tuple(map(_convert_args, a))
+    xfinv, input_parser=lambda *a: tuple(map(_convert_args, a))
 )
 FUNCTIONS['_XLFN.F.DIST.RT'] = FUNCTIONS['F.DIST.RT'] = wrap_ufunc(
-    xfdistrt,
-    input_parser=lambda *a: tuple(map(_convert_args, a))
+    xfdistrt, input_parser=lambda *a: tuple(map(_convert_args, a))
 )
 FUNCTIONS['_XLFN.F.INV.RT'] = FUNCTIONS['F.INV.RT'] = wrap_ufunc(
-    xfinvrt,
-    input_parser=lambda *a: tuple(map(_convert_args, a))
+    xfinvrt, input_parser=lambda *a: tuple(map(_convert_args, a))
 )
-FUNCTIONS['_XLFN.F.TEST'] = FUNCTIONS['F.TEST'] = wrap_func(
-    xftest
-)
+FUNCTIONS['_XLFN.F.TEST'] = FUNCTIONS['F.TEST'] = wrap_func(xftest)
 
 
 def xt_dist(x, deg_freedom, cumulative=True):
@@ -1165,9 +1160,9 @@ def xt_test(array1, array2, tails, ttype):
 
 FUNCTIONS['_XLFN.T.DIST'] = FUNCTIONS['T.DIST'] = wrap_ufunc(
     xt_dist,
-    input_parser=lambda *a: tuple(
-        map(_convert_args, a[:-1])
-    ) + tuple(map(_parse_cumulative, a[-1:]))
+    input_parser=lambda x, deg_freedom, cumulative=True: tuple(
+        map(_convert_args, (x, deg_freedom))
+    ) + (_parse_cumulative(cumulative),)
 )
 FUNCTIONS['_XLFN.T.INV'] = FUNCTIONS['T.INV'] = wrap_ufunc(
     xt_inv,
@@ -1321,13 +1316,12 @@ FUNCTIONS['_XLFN.GAMMA'] = FUNCTIONS['GAMMA'] = wrap_ufunc(
 )
 FUNCTIONS['_XLFN.GAMMA.DIST'] = FUNCTIONS['GAMMA.DIST'] = wrap_ufunc(
     xgamma_dist,
-    input_parser=lambda *a: tuple(
-        map(_convert_args, a[:-1])
-    ) + tuple(map(_parse_cumulative, a[-1:]))
+    input_parser=lambda x, alpha, beta, cumulative=True: tuple(
+        map(_convert_args, (x, alpha, beta))
+    ) + (_parse_cumulative(cumulative),)
 )
 FUNCTIONS['_XLFN.GAMMA.INV'] = FUNCTIONS['GAMMA.INV'] = wrap_ufunc(
-    xgamma_inv,
-    input_parser=lambda *a: tuple(map(_convert_args, a))
+    xgamma_inv, input_parser=lambda *a: tuple(map(_convert_args, a))
 )
 FUNCTIONS['_XLFN.GAMMALN.PRECISE'] = FUNCTIONS['GAMMALN.PRECISE'] = wrap_ufunc(
     xgammaln, input_parser=lambda x: (_convert_args(x),)
