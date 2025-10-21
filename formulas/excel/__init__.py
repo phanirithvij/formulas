@@ -20,6 +20,7 @@ Sub-Modules:
     ~cycle
     ~xlreader
 """
+import tqdm
 import os
 import logging
 import functools
@@ -454,67 +455,78 @@ class ExcelModel:
             stack = stack.difference(done)
         stack = sorted(stack)
         sheet_limits = {}
-        while stack:
-            n_id = stack.pop()
-            if isinstance(n_id, sh.Token) or n_id in done:
-                continue
-            done.add(n_id)
-            if n_id in self.references:
-                stack.extend(self.cells[n_id].inputs or ())
-                continue
-            try:
-                rng = Ranges.get_range(n_id, raise_anchor=False)
-            except InvalidRangeName:  # Missing Reference.
-                log.warning('Missing Reference `{}`!'.format(n_id))
-                Ref(n_id, '=#REF!').compile().add(self.dsp)
-                continue
-            book = _encode_path(osp.join(
-                _decode_path(rng.get('directory', '')),
-                _decode_path(rng.get('filename', rng.get('excel_id', '')))
-            ))
+        with tqdm.tqdm(total=len(stack)) as pbar:
+            while stack:
+                n_id = stack.pop()
+                pbar.update(1)
+                if isinstance(n_id, sh.Token) or n_id in done:
+                    continue
+                done.add(n_id)
+                if n_id in self.references:
+                    extra = self.cells[n_id].inputs or ()
+                    if extra:
+                        stack.extend(extra)
+                        pbar.total += len(extra)
+                        pbar.refresh()
+                    continue
+                try:
+                    rng = Ranges.get_range(n_id, raise_anchor=False)
+                except InvalidRangeName:  # Missing Reference.
+                    log.warning('Missing Reference `{}`!'.format(n_id))
+                    Ref(n_id, '=#REF!').compile().add(self.dsp)
+                    continue
+                book = _encode_path(osp.join(
+                    _decode_path(rng.get('directory', '')),
+                    _decode_path(rng.get('filename', rng.get('excel_id', '')))
+                ))
 
-            try:
-                context = self.add_book(book)[1]
-                wk, context = self.add_sheet(rng['sheet'], context)
-            except Exception as ex:  # Missing excel file or sheet.
-                log.warning('Error in loading `{}`:\n{}'.format(n_id, ex))
-                Cell(n_id, '=#REF!').compile().add(self.dsp)
-                self.books.pop(book, None)
-                continue
-            if self.add_anchor(rng, set_ref=False, context=context):
-                continue
-            references = self.references
-            formula_references = self.formula_references(context)
-            formula_ranges = self.formula_ranges(context)
-            external_links = self.external_links(context)
+                try:
+                    context = self.add_book(book)[1]
+                    wk, context = self.add_sheet(rng['sheet'], context)
+                except Exception as ex:  # Missing excel file or sheet.
+                    log.warning('Error in loading `{}`:\n{}'.format(n_id, ex))
+                    Cell(n_id, '=#REF!').compile().add(self.dsp)
+                    self.books.pop(book, None)
+                    continue
+                if self.add_anchor(rng, set_ref=False, context=context):
+                    continue
+                references = self.references
+                formula_references = self.formula_references(context)
+                formula_ranges = self.formula_ranges(context)
+                external_links = self.external_links(context)
 
-            _name = '%s'
-            if 'sheet_id' in rng:
-                _name = f'{rng["sheet_id"]}!{_name}'
-            if wk not in sheet_limits:
-                sheet_limits[wk] = wk.max_row, wk.max_column
-            max_row, max_column = sheet_limits[wk]
-            it = wk.iter_rows(
-                int(rng['r1']), min(int(rng['r2']), max_row),
-                rng['n1'], min(rng['n2'], max_column)
-            )
-            ctx = {'external_links': external_links}
-            ctx.update(context)
-            cells = []
-            for row in it:
-                for c in row:
-                    n = _name % c.coordinate
-                    if n in self.cells:
-                        continue
-                    elif hasattr(c, 'value'):
-                        cells.append(self.compile_cell(
-                            c, ctx, references, formula_references
-                        ))
-            for cell in cells:
-                # noinspection PyTypeChecker
-                cell = self.add_cell(sh.await_result(cell), ctx, formula_ranges)
-                if cell:
-                    stack.extend(cell.inputs or ())
+                _name = '%s'
+                if 'sheet_id' in rng:
+                    _name = f'{rng["sheet_id"]}!{_name}'
+                if wk not in sheet_limits:
+                    sheet_limits[wk] = wk.max_row, wk.max_column
+                max_row, max_column = sheet_limits[wk]
+                it = wk.iter_rows(
+                    int(rng['r1']), min(int(rng['r2']), max_row),
+                    rng['n1'], min(rng['n2'], max_column)
+                )
+                ctx = {'external_links': external_links}
+                ctx.update(context)
+                cells = []
+                for row in it:
+                    for c in row:
+                        n = _name % c.coordinate
+                        if n in self.cells:
+                            continue
+                        elif hasattr(c, 'value'):
+                            cells.append(self.compile_cell(
+                                c, ctx, references, formula_references
+                            ))
+                for cell in cells:
+                    # noinspection PyTypeChecker
+                    cell = self.add_cell(sh.await_result(cell), ctx,
+                                         formula_ranges)
+                    if cell:
+                        extra = cell.inputs or ()
+                        if extra:
+                            stack.extend(extra)
+                            pbar.total += len(extra)
+                            pbar.refresh()
         return self
 
     def _assemble_ranges(self, cells, nodes=None, compact=1):
