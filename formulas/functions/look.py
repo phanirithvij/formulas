@@ -897,7 +897,10 @@ def xindex(array, row_num, col_num=None, area_num=1):
     return res.view(Array)
 
 
-FUNCTIONS['INDEX'] = wrap_func(xindex, ranges=True)
+FUNCTIONS['INDEX'] = {
+    'extra_inputs': collections.OrderedDict([(COMPILING, False)]),
+    'function': wrap_impure_func(wrap_func(xindex, ranges=True)),
+}
 
 
 def _binary_search(index, arr, target, eq, asc=True):
