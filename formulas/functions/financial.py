@@ -838,6 +838,103 @@ def xddb(cost, salvage, life, period, factor=2):
 FUNCTIONS['DDB'] = wrap_ufunc(xddb, input_parser=convert2float)
 
 
+def total_depr(cost: float, salvage: float, life: float, period: float,
+               factor: float, straight_line: bool) -> float:
+    """
+    Cumulative (total) depreciation up to 'period' (can be fractional),
+    using double-declining (or general 'factor') balance with optional
+    straight-line switchover when SLN gives a higher amount.
+
+    Mirrors the provided JS logic:
+      - period can be fractional (e.g., 3.4); only first and last partials are prorated.
+      - When straight_line is True, switch from DDB to SLN when SLN > DDB on that step.
+      - Caps total depreciation so book value doesn't go below salvage.
+    """
+    # fractional remainder in the *requested* period
+    frac = period - np.floor(period)
+
+    def ddb_depr_amount(tot_depr: float) -> float:
+        # Remaining book value
+        book = cost - tot_depr
+        # Max remaining depreciable
+        rem_dep_cap = book - salvage
+
+        # Nominal DDB for a full period
+        ddb_amt = book * (factor / life)
+        # Cap so we never go past salvage
+        return min(ddb_amt, rem_dep_cap)
+
+    def sln_depr_amount(tot_depr: float, a_period: float) -> float:
+        # SLN on (remaining book, same salvage, remaining life)
+        return (cost - tot_depr - salvage) / (life - a_period)
+
+    if straight_line:
+        def _ddb(tot_depr: float, per: float) -> float:
+            # Compute current period's full depreciation using the chosen method
+            ddb_amt = ddb_depr_amount(tot_depr)
+            sln_amt = sln_depr_amount(tot_depr, per)
+            depr = sln_amt if ddb_amt < sln_amt else ddb_amt
+            new_tot = tot_depr + depr
+
+            # If the requested 'period' is still within the first (0th) partial period
+            if np.floor(period) == 0:
+                return new_tot * frac
+
+            # If we're at the period just before the (possibly fractional) target period,
+            # add a prorated share of the *next* period's depreciation.
+            if np.floor(per) == (np.floor(period) - 1):
+                ddb_next = ddb_depr_amount(new_tot)
+                sln_next = sln_depr_amount(new_tot, per + 1)
+                if ddb_next < sln_next:
+                    if np.floor(period) == np.floor(life):
+                        depr_next = 0.0
+                    else:
+                        depr_next = sln_next
+                else:
+                    depr_next = ddb_next
+
+                return new_tot + depr_next * frac
+
+            # Otherwise, keep iterating full periods
+            return _ddb(new_tot, per + 1)
+    else:
+        def _ddb(tot_depr: float, per: float) -> float:
+            # Compute current period's full depreciation using the chosen method
+            depr = ddb_depr_amount(tot_depr)
+            new_tot = tot_depr + depr
+
+            # If the requested 'period' is still within the first (0th) partial period
+            if np.floor(period) == 0:
+                return new_tot * frac
+
+            # If we're at the period just before the (possibly fractional) target period,
+            # add a prorated share of the *next* period's depreciation.
+            if np.floor(per) == (np.floor(period) - 1):
+                depr_next = ddb_depr_amount(new_tot)
+                return new_tot + depr_next * frac
+
+            # Otherwise, keep iterating full periods
+            return _ddb(new_tot, per + 1)
+    res = _ddb(0.0, 0.0)
+    return res
+
+
+def xvdb(cost, salvage, life, start_period, end_period, factor=2,
+         no_switch=0):
+    if (cost < 0 or salvage < 0 or life <= 0 or start_period < 0 or
+            start_period > end_period or end_period > life and factor < 0):
+        raise FoundError(err=Error.errors["#NUM!"])
+    no_switch = not bool(no_switch)
+    return round(
+        total_depr(cost, salvage, life, end_period, factor, no_switch) -
+        total_depr(cost, salvage, life, start_period, factor, no_switch),
+        16
+    )
+
+
+FUNCTIONS['VDB'] = wrap_ufunc(xvdb, input_parser=convert2float)
+
+
 def xoddfprice(settlement, maturity, issue, first_coupon, rate, yld, redemption,
                frequency, basis=0):
     if (not (maturity > first_coupon > settlement > issue) or rate < 0 or
