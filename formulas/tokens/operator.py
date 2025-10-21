@@ -39,8 +39,11 @@ class Operator(Token):
         if self.name in ' ,:':
             self.attr['is_ranges'] = True
             from .operand import Range, Error
+            from .function import Function
             for t in tokens:
                 if isinstance(t, Range):
+                    t.attr['is_ranges'] = True
+                elif isinstance(t, Function) and self.name in ':':
                     t.attr['is_ranges'] = True
                 elif isinstance(t, Error) and t.name == '#REF!':
                     t.attr['is_ranges'] = True

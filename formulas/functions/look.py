@@ -880,7 +880,34 @@ def _index(arrays, row_num, col_num, area_num, is_reference, is_array):
 def xindex(array, row_num, col_num=None, area_num=1):
     is_reference = isinstance(array, Ranges)
     if is_reference:
-        arrays = [Ranges((rng,), array.values).value for rng in array.ranges]
+        if array.is_set:
+            arrays = [Ranges((rng,), array.values).value
+                      for rng in array.ranges]
+        else:
+            from ..cell import RangesAssembler, InvRangesAssembler
+            from ..tokens.operand import _index2col
+            arrays = []
+            base = array.ranges[0]
+            sheet_id = base['sheet_id']
+            _name = f'{sheet_id}!%s' if sheet_id else '%s'
+            for rng in array.ranges:
+                arr = []
+                rngs = Ranges((rng,), array.values)
+                value = rngs.value
+                for r in range(int(rng['r1']), int(rng['r2']) + 1):
+                    row = []
+                    arr.append(row)
+                    for n in range(rng['n1'], rng['n2'] + 1):
+                        c = _index2col(n)
+                        ref = '{}{}'.format(c, r)
+                        name = _name % ref
+                        row.append(Ranges(values=dict(array.values)).set_value({
+                            'r1': r, 'r2': r, 'c1': c, 'c2': c, 'n1': n,
+                            'n2': n,
+                            'ref': ref, 'name': name, 'sheet_id': sheet_id
+                        }, value[r - int(base['r1']), n - base['n1']]))
+
+                arrays.append(np.asarray(arr, object))
     else:
         arrays = [array]
 
@@ -894,6 +921,8 @@ def xindex(array, row_num, col_num=None, area_num=1):
         res = res.reshape(1, 1)
         if isinstance(res[0, 0], np.ndarray):
             res = res[0, 0]
+        elif isinstance(res[0, 0], Ranges):
+            return res[0, 0]
     return res.view(Array)
 
 
