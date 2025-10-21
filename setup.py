@@ -148,7 +148,8 @@ if __name__ == '__main__':
             'numpy>=1.15',
             'python-dateutil',
             'numpy-financial',
-            'scipy'
+            'scipy',
+            'tqdm'
         ],
         extras_require=extras,
         tests_require=['ddt', 'dill', 'openpyxl']

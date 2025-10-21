@@ -2,6 +2,66 @@ Changelog
 =========
 
 
+v1.3.2 (2025-10-21)
+-------------------
+
+Feat
+~~~~
+- (core): Make parse dynamic arrays.
+
+- (test): Update all test cases.
+
+- (excel): Convert ranges before writing on Excel file.
+
+- (excel): Add log when reading files.
+
+- (math): Add `MULTINOMIAL`.
+
+- (math): Add `SUMX2MY2`, `SUMX2PY2`, `SUMXMY2`.
+
+- (compatibility): Add `BETAINV`, `BINOMDIST`, `CHIDIST`, `CHIINV`,
+  `CHITEST`, `CHIDIST`, `CONFIDENCE`, `COVAR`, `CRITBINOM`, `EXPONDIST`,
+  `FDIST`, `FINV`, `FTEST`, `GAMMADIST`, `GAMMAINV`, `LOGINV`, `MODE`,
+  `PERCENTRANK`, `POISSON`, `RANK`, `TINV`, `TTEST`, `WEIBULL`, `ZTEST`,
+  `BETADIST`, `HYPGEOMDIST`, `LOGNORMDIST`, `NEGBINOMDIST`, `TDIST`.
+
+- (financial): Add `VDB`.
+
+- (financial): Add `ODDFPRICE`, `ODDFYIELD`.
+
+- (financial): Add `ODDLPRICE`, `ODDLYIELD`.
+
+- (date): Add `NETWORKDAYS.INTL`, `NETWORKDAYS`, `WORKDAY.INTL`,
+  `WORKDAY`.
+
+- (date): Add `DAYS360`, `DAYS`.
+
+- (financial): Add `TBILLEQ`, `TBILLPRICE`, `TBILLYIELD`.
+
+- (financial): Add `PRICE`, `PRICEDISC`, `PRICEMAT`, `YIELD`,
+  `YIELDDISC`, `YIELDMAT`, `AMORLINC`, `AMORDEGRC`.
+
+- (financial): Add `ACCRINT` with some limitation on basis 1,2,3.
+
+- (financial): Add `FVSCHEDULE`, `ISPMT`, `SLN`, `SYD`.
+
+- (financial): Add `INTRATE`, `RECEIVED`, `DISC`, `DB`, `DDB`,
+  `DOLLARDE`, `DOLLARFR`.
+
+- (financial): Add `ACCRINTM`, `COUPNUM`, `COUPNCD`, `COUPPCD`,
+  `COUPDAYS`, `COUPDAYBS`, `COUPDAYSNC`, `DURATION`, `MDURATION`,
+  `PDURATION`, `RRI`, `EFFECT`, `NOMINAL`, `CUMPRINC`, `MIRR`.
+
+
+Fix
+~~~
+- (text): Remove unused code.
+
+- (date): Correct `DAYS360` calculation for basis==0.
+
+- (look): Avoid running INDEX during compilation.
+
+
 v1.3.1 (2025-09-15)
 -------------------
 

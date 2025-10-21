@@ -4,3 +4,4 @@ numpy>=1.15
 python-dateutil
 numpy-financial
 scipy
+tqdm
