@@ -699,6 +699,8 @@ class ExcelModel:
             ref = '{c1}{r1}:{c2}{r2}'.format(**rng)
             for c, v in zip(np.ravel(sheet[ref]), np.ravel(r.value)):
                 try:
+                    if isinstance(v, Ranges) and v.value.shape == (1, 1):
+                        v = v.value[0, 0]
                     if v is sh.EMPTY:
                         v = None
                     elif isinstance(v, np.generic):
