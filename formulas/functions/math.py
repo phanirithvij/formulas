@@ -255,6 +255,22 @@ def xmround(*args):
 FUNCTIONS['MROUND'] = wrap_func(xmround)
 
 
+def xmultinominal(*args):
+    from . import convert2float
+    args = tuple(flatten(map(replace_empty, args), None))
+    if any(isinstance(v, bool) for v in args):
+        raise FoundError(err=Error.errors['#VALUE!'])
+    nums = np.asarray(tuple(convert2float(*args))).astype(int)
+    if (nums < 0).any():
+        raise FoundError(err=Error.errors['#NUM!'])
+    log_num = math.lgamma(nums.sum() + 1.0)
+    log_den = sum(math.lgamma(x + 1.0) for x in nums)
+    return round(np.exp(log_num - log_den), 11)
+
+
+FUNCTIONS['MULTINOMIAL'] = wrap_func(xmultinominal)
+
+
 def return_func(res, inp):
     shape = np.asarray(inp).shape
     if len(shape) == 2:

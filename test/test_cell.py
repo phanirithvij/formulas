@@ -23,6 +23,8 @@ def inp_ranges(*rng):
 @ddt.ddt
 class TestCell(unittest.TestCase):
     @ddt.idata([
+        ('A1', '=MULTINOMIAL(0,0)', {}, "<Ranges>(A1)=[[1.0]]"),
+        ('A1', '=MULTINOMIAL(2,3,4)', {}, "<Ranges>(A1)=[[1260.0]]"),
         ('A1', '=SUMX2MY2({1,2},{3,4})', {}, "<Ranges>(A1)=[[-20.0]]"),
         ('A1', '=HYPGEOMDIST(0,,,)', {}, "<Ranges>(A1)=[[1.0]]"),
         ('A1', '=VDB(2400,300,10*12,0,3.2)', {},
