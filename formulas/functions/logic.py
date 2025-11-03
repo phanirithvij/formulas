@@ -31,7 +31,7 @@ def solve_cycle(*args):
 
 FUNCTIONS['IF'] = {
     'function': wrap_ufunc(
-        xif, input_parser=lambda *a: a,
+        xif, input_parser=lambda *a: a, check_nan=False,
         check_error=lambda cond, *a: get_error(cond)
     ),
     'solve_cycle': solve_cycle
@@ -54,7 +54,7 @@ def xifs(*cond_vals):
 
 FUNCTIONS['_XLFN.IFS'] = FUNCTIONS['IFS'] = {
     'function': wrap_ufunc(
-        xifs, input_parser=lambda *a: a,
+        xifs, input_parser=lambda *a: a, check_nan=False,
         check_error=lambda *a: None
     ),
     'solve_cycle': lambda *a: not any(a[::2])
@@ -68,7 +68,8 @@ def xiferror(val, val_if_error):
 
 FUNCTIONS['IFERROR'] = {
     'function': wrap_ufunc(
-        xiferror, input_parser=lambda *a: a, check_error=lambda *a: False
+        xiferror, input_parser=lambda *a: a, check_error=lambda *a: False,
+        check_nan=False,
     ),
     'solve_cycle': solve_cycle
 }
@@ -81,7 +82,8 @@ def xifna(val, val_if_error):
 
 FUNCTIONS['_XLFN.IFNA'] = FUNCTIONS['IFNA'] = {
     'function': wrap_ufunc(
-        xifna, input_parser=lambda *a: a, check_error=lambda *a: False
+        xifna, input_parser=lambda *a: a, check_error=lambda *a: False,
+        check_nan=False,
     ),
     'solve_cycle': solve_cycle
 }
