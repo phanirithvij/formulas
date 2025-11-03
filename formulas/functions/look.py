@@ -884,7 +884,6 @@ def xindex(array, row_num, col_num=None, area_num=1):
             arrays = [Ranges((rng,), array.values).value
                       for rng in array.ranges]
         else:
-            from ..cell import RangesAssembler, InvRangesAssembler
             from ..tokens.operand import _index2col
             arrays = []
             base = array.ranges[0]
@@ -917,7 +916,7 @@ def xindex(array, row_num, col_num=None, area_num=1):
         arrays, row_num, col_num, area_num, is_reference,
         isinstance(row_num, np.ndarray)
     )
-    if not res.shape:
+    if not res.shape or res.shape == (1, 1):
         res = res.reshape(1, 1)
         if isinstance(res[0, 0], np.ndarray):
             res = res[0, 0]
