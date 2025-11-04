@@ -2,6 +2,21 @@ Changelog
 =========
 
 
+v1.3.3 (2025-11-04)
+-------------------
+
+Feat
+~~~~
+- (test): Update all test cases.
+
+
+Fix
+~~~
+- (logic): Remove na check for if conditions.
+
+- (look): Correct INDEX Function result.
+
+
 v1.3.2 (2025-10-21)
 -------------------
 
